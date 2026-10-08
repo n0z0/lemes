@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 )
@@ -17,7 +18,51 @@ var (
 	versionFlag = flag.Bool("version", false, "Tampilkan versi aplikasi")
 )
 
-var appVersion = "0.1.0"
+var (
+	appVersion = "0.1.0"
+	localIP    = "127.0.0.1"
+)
+
+// detectLocalIP mencari IP LAN non-loopback komputer saat ini
+func detectLocalIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err == nil {
+		defer conn.Close()
+		localAddr := conn.LocalAddr().(*net.UDPAddr)
+		if !localAddr.IP.IsLoopback() {
+			return localAddr.IP.String()
+		}
+	}
+
+	ifaces, err := net.Interfaces()
+	if err == nil {
+		for _, iface := range ifaces {
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, addr := range addrs {
+				var ip net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				case *net.IPAddr:
+					ip = v.IP
+				}
+				if ip == nil || ip.IsLoopback() {
+					continue
+				}
+				if ip4 := ip.To4(); ip4 != nil {
+					return ip4.String()
+				}
+			}
+		}
+	}
+	return "127.0.0.1"
+}
 
 func initConfig() {
 	flag.Parse()
@@ -31,6 +76,8 @@ func initConfig() {
 		*port = ":" + *port
 	}
 
+	localIP = detectLocalIP()
+
 	if *sensorID == "" {
 		host, err := os.Hostname()
 		if err != nil || host == "" {
@@ -41,6 +88,10 @@ func initConfig() {
 	}
 
 	if *publicURL == "" && !*tunnelFlag {
-		*publicURL = fmt.Sprintf("http://localhost%s", *port)
+		if localIP != "" && localIP != "127.0.0.1" {
+			*publicURL = fmt.Sprintf("http://%s%s", localIP, *port)
+		} else {
+			*publicURL = fmt.Sprintf("http://localhost%s", *port)
+		}
 	}
 }

@@ -9,8 +9,16 @@ import (
 
 func handleLureDashboard(w http.ResponseWriter, r *http.Request) {
 	pubURL := *publicURL
-	if pubURL == "" {
-		pubURL = fmt.Sprintf("http://%s", r.Host)
+	if pubURL == "" || strings.Contains(pubURL, "localhost") || strings.Contains(pubURL, "127.0.0.1") {
+		if r.Host != "" && !strings.HasPrefix(r.Host, "localhost") && !strings.HasPrefix(r.Host, "127.0.0.1") {
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			pubURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		} else if localIP != "" && localIP != "127.0.0.1" {
+			pubURL = fmt.Sprintf("http://%s%s", localIP, *port)
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -30,9 +38,20 @@ func handleDownloadLureHTML(w http.ResponseWriter, r *http.Request) {
 		fileName = "internal_vpn_credentials.html"
 	}
 
+	customBase := r.URL.Query().Get("base_url")
 	pubURL := *publicURL
-	if pubURL == "" {
-		pubURL = fmt.Sprintf("http://%s", r.Host)
+	if customBase != "" {
+		pubURL = strings.TrimRight(customBase, "/")
+	} else if pubURL == "" || strings.Contains(pubURL, "localhost") || strings.Contains(pubURL, "127.0.0.1") {
+		if r.Host != "" && !strings.HasPrefix(r.Host, "localhost") && !strings.HasPrefix(r.Host, "127.0.0.1") {
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			pubURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		} else if localIP != "" && localIP != "127.0.0.1" {
+			pubURL = fmt.Sprintf("http://%s%s", localIP, *port)
+		}
 	}
 
 	beaconURL := fmt.Sprintf("%s/beacon/pixel.png?token=%s&file=%s", pubURL, url.QueryEscape(token), url.QueryEscape(fileName))
@@ -173,6 +192,10 @@ const lureDashboardHTML = `<!DOCTYPE html>
                 File HTML ini memuat <strong>Tingkat 1 (Passive Pixel)</strong> dan <strong>Tingkat 2 (JS Telemetry)</strong>. Saat dibuka di browser pelaku, ia otomatis merekam <strong>Real IP, Timezone, Model GPU, CPU Cores, RAM, dan Resolusi Layar</strong> ke log CTI!
             </div>
             <div class="field">
+                <label>Alamat Listener / Base URL (IP LAN Komputer / Domain Publik Tunnel)</label>
+                <input type="text" id="baseUrlInput" value="{{PUBLIC_URL}}" oninput="updateSnippet()">
+            </div>
+            <div class="field">
                 <label>Token Identifier (Unik per file/target)</label>
                 <input type="text" id="tokenInput" value="sftp_vpn_leak_01" oninput="updateSnippet()">
             </div>
@@ -201,11 +224,10 @@ const lureDashboardHTML = `<!DOCTYPE html>
     </div>
 
     <script>
-        const baseUrl = "{{PUBLIC_URL}}";
-
         function updateSnippet() {
             const token = encodeURIComponent(document.getElementById('tokenInput').value);
             const file = encodeURIComponent(document.getElementById('fileInput').value);
+            const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
             const beaconUrl = baseUrl + "/beacon/pixel.png?token=" + token + "&file=" + file;
 
             document.getElementById('urlBox').textContent = beaconUrl;
@@ -215,7 +237,8 @@ const lureDashboardHTML = `<!DOCTYPE html>
         function downloadLure() {
             const token = encodeURIComponent(document.getElementById('tokenInput').value);
             const file = encodeURIComponent(document.getElementById('fileInput').value);
-            window.location.href = baseUrl + "/lure/download/html?token=" + token + "&file=" + file;
+            const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
+            window.location.href = baseUrl + "/lure/download/html?token=" + token + "&file=" + file + "&base_url=" + encodeURIComponent(baseUrl);
         }
 
         updateSnippet();
