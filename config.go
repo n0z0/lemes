@@ -4,14 +4,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 var (
-	port      = flag.String("port", ":8080", "Port listener HTTP honeybeacon (contoh: :8080 atau :80)")
-	ctiLog    = flag.String("ctilog", "lemes_cti.jsonl", "Path file log CTI (format JSON Lines)")
-	sensorID  = flag.String("sensor-id", "", "ID sensor Honeybeacon (default: hostname)")
-	cacheDB   = flag.String("cachedb", "", "Alamat gRPC cachedb opsional (contoh: 127.0.0.1:50051)")
-	publicURL = flag.String("public-url", "", "URL publik server lemes untuk penyisipan lure beacon (contoh: http://192.168.1.100:8080)")
+	port        = flag.String("port", ":50505", "Port listener HTTP honeybeacon (default: :50505)")
+	tunnelFlag  = flag.Bool("tunnel", false, "Otomatis jalankan Cloudflare Tunnel (cloudflared) untuk mendapatkan domain HTTPS publik gratis")
+	ctiLog      = flag.String("ctilog", "lemes_cti.jsonl", "Path file log CTI (format JSON Lines)")
+	sensorID    = flag.String("sensor-id", "", "ID sensor Honeybeacon (default: hostname)")
+	cacheDB     = flag.String("cachedb", "", "Alamat gRPC cachedb opsional (contoh: 127.0.0.1:50051)")
+	publicURL   = flag.String("public-url", "", "URL publik server lemes untuk penyisipan lure beacon (contoh: https://honey.domain.com atau http://192.168.1.100:50505)")
 	versionFlag = flag.Bool("version", false, "Tampilkan versi aplikasi")
 )
 
@@ -25,6 +27,10 @@ func initConfig() {
 		os.Exit(0)
 	}
 
+	if !strings.HasPrefix(*port, ":") {
+		*port = ":" + *port
+	}
+
 	if *sensorID == "" {
 		host, err := os.Hostname()
 		if err != nil || host == "" {
@@ -34,7 +40,7 @@ func initConfig() {
 		}
 	}
 
-	if *publicURL == "" {
+	if *publicURL == "" && !*tunnelFlag {
 		*publicURL = fmt.Sprintf("http://localhost%s", *port)
 	}
 }

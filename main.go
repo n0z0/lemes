@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -17,6 +21,17 @@ func main() {
 		log.Fatalf("Gagal inisialisasi logger CTI: %v", err)
 	}
 	defer logger.Close()
+
+	var tunnelMgr *TunnelManager
+	if *tunnelFlag {
+		tm, err := startCloudflareTunnel(*port)
+		if err != nil {
+			log.Fatalf("[TUNNEL ERROR] %v", err)
+		}
+		tunnelMgr = tm
+		*publicURL = tm.PublicURL
+		defer tunnelMgr.Stop()
+	}
 
 	// Health check sederhana
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -59,19 +74,41 @@ func main() {
 		handleDecoyAPI(w, r)
 	})
 
+	server := &http.Server{
+		Addr: *port,
+	}
+
+	// Tangani sinyal shutdown (Ctrl+C / SIGTERM)
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-stopChan
+		log.Printf("\n[SHUTDOWN] Menghentikan server lemes...")
+		if tunnelMgr != nil {
+			tunnelMgr.Stop()
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+
 	log.Printf("==================================================")
-	log.Printf("🍯 Lemes Honeybeacon v%s berjalan di %s", appVersion, *port)
+	log.Printf("🍯 Lemes Honeybeacon v%s berjalan di port %s", appVersion, *port)
 	log.Printf("📌 Sensor ID   : %s", *sensorID)
 	log.Printf("📁 CTI Log     : %s", *ctiLog)
 	if *cacheDB != "" {
 		log.Printf("⚡ cacheDB     : %s", *cacheDB)
+	}
+	if *tunnelFlag {
+		log.Printf("🌐 HTTPS Tunnel: %s (Cloudflare)", *publicURL)
 	}
 	log.Printf("🔗 Generator   : %s/lure", *publicURL)
 	log.Printf("🌐 Decoy Portal: %s/", *publicURL)
 	log.Printf("🎯 Beacon Pixel: %s/beacon/pixel.png", *publicURL)
 	log.Printf("==================================================")
 
-	if err := http.ListenAndServe(*port, nil); err != nil {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server berhenti dengan error: %v", err)
 	}
 }

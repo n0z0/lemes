@@ -111,4 +111,4 @@ Write-Host " Versi: $TargetTag" -ForegroundColor Green
 Write-Host " Lokasi: $TargetExePath" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host "Buka terminal baru dan jalankan:"
-Write-Host '   lemes -port :8080' -ForegroundColor Yellow
+Write-Host '   lemes -tunnel' -ForegroundColor Yellow

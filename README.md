@@ -78,21 +78,25 @@ curl -fsSL https://raw.githubusercontent.com/n0z0/lemes/main/install.sh | bash
 
 ### 1. Menjalankan Server
 ```bash
-# Menjalankan pada port default 8080
-lemes -port :8080
+# Menjalankan pada port default 50505
+lemes
+
+# Menjalankan dengan otomatis Cloudflare HTTPS Tunnel (Rekomendasi CTI)
+lemes -tunnel
 
 # Menjalankan dengan integrasi cachedb dan CTI log custom
-lemes -port :8080 -ctilog /var/log/lemes_cti.jsonl -cachedb 127.0.0.1:50051 -public-url http://cti.domain.com:8080
+lemes -port :50505 -tunnel -ctilog /var/log/lemes_cti.jsonl -cachedb 127.0.0.1:50051
 ```
 
 ### 2. Opsi Perintah (CLI Flags)
 | Flag | Tipe | Default | Keterangan |
 | :--- | :--- | :--- | :--- |
-| `-port` | string | `:8080` | Port listen HTTP server |
+| `-port` | string | `:50505` | Port listen HTTP server |
+| `-tunnel` | bool | `false` | Jalankan otomatis Cloudflare Quick Tunnel (`cloudflared`) untuk mendapatkan URL HTTPS publik gratis |
 | `-ctilog` | string | `lemes_cti.jsonl` | Lokasi file output log CTI (JSONL) |
 | `-sensor-id` | string | `hostname` | Identitas unik sensor node ini |
 | `-cachedb` | string | `""` | Alamat gRPC cacheDB opsional (`host:port`) |
-| `-public-url` | string | `http://localhost<port>` | URL publik yang bisa dijangkau oleh penyerang |
+| `-public-url` | string | `http://localhost:50505` | URL publik server (otomatis diisi jika menggunakan `-tunnel`) |
 | `-version` | bool | `false` | Tampilkan versi lemes |
 
 ---
