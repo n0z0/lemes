@@ -49,8 +49,11 @@
 3. **Decoy Login Portal & API Traps**:
    - Menyajikan halaman login perusahaan palsu (*Single Sign-On Portal*) pada `/`, `/login`, `/portal`.
    - Menjebak dan merekam percobaan brute force / credential stuffing (MITRE T1110).
-4. **Lure & Token Generator Bawaan**:
-   - Akses `/lure` di browser untuk membuat token dan mengunduh file dokumen umpan HTML siap pakai yang langsung bisa ditaruh di SFTP honeypot `scp`.
+4. **Multi-Format Lure & Canary Token Generator Bawaan**:
+   - Akses `/lure` di browser untuk membuat token dan mengunduh:
+     - **Word Canary Document (`.docx`):** Menggunakan OpenXML *External Relationship Target* (`word/_rels/document.xml.rels`). Begitu dokumen dibuka di Microsoft Word, LibreOffice, atau WPS oleh penyerang, software Word otomatis melakukan HTTP GET ke beacon tanpa membutuhkan macro!
+     - **Windows Internet Shortcut (`.url`):** Menanamkan `IconFile=http://.../beacon/pixel.png`. Saat folder atau file dilihat di Windows Explorer, ikon otomatis di-request dan memicu alert instan!
+     - **HTML Lure (`.html`):** Memuat kredensial decoy serta skrip telemetri GPU/hardware.
 5. **Integrasi cacheDB (Opsional)**:
    - Otomatis menyimpan entri ancaman ke cache memory via gRPC [cachedb](https://github.com/n0z0/cachedb).
 6. **Structured CTI Log (JSON Lines)**:

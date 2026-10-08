@@ -57,6 +57,8 @@ func main() {
 	// Lure Generator & Downloads
 	http.HandleFunc("/lure", handleLureDashboard)
 	http.HandleFunc("/lure/download/html", handleDownloadLureHTML)
+	http.HandleFunc("/lure/download/docx", handleDownloadLureDOCX)
+	http.HandleFunc("/lure/download/url", handleDownloadLureURL)
 
 	// Root Handler
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

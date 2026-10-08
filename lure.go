@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -144,6 +146,190 @@ func handleDownloadLureHTML(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(content))
 }
 
+func handleDownloadLureDOCX(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = "default_token"
+	}
+
+	fileName := r.URL.Query().Get("file")
+	if fileName == "" {
+		fileName = "Confidential_Network_Access_Credentials.docx"
+	}
+	if !strings.HasSuffix(strings.ToLower(fileName), ".docx") {
+		fileName += ".docx"
+	}
+
+	customBase := r.URL.Query().Get("base_url")
+	pubURL := *publicURL
+	if customBase != "" {
+		pubURL = strings.TrimRight(customBase, "/")
+	} else if pubURL == "" || strings.Contains(pubURL, "localhost") || strings.Contains(pubURL, "127.0.0.1") {
+		if r.Host != "" && !strings.HasPrefix(r.Host, "localhost") && !strings.HasPrefix(r.Host, "127.0.0.1") {
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			pubURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		} else if localIP != "" && localIP != "127.0.0.1" {
+			pubURL = fmt.Sprintf("http://%s%s", localIP, *port)
+		}
+	}
+
+	beaconURL := fmt.Sprintf("%s/beacon/pixel.png?token=%s&file=%s", pubURL, url.QueryEscape(token), url.QueryEscape(fileName))
+
+	docxBytes, err := generateCanaryDOCX(beaconURL)
+	if err != nil {
+		http.Error(w, "Gagal membuat dokumen DOCX", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	w.WriteHeader(http.StatusOK)
+	w.Write(docxBytes)
+}
+
+func generateCanaryDOCX(beaconURL string) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	files := map[string]string{
+		"[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`,
+		"_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`,
+		"word/_rels/document.xml.rels": fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPixel" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="%s" TargetMode="External"/>
+</Relationships>`, beaconURL),
+		"word/document.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p>
+      <w:pPr><w:jc w:val="center"/></w:pPr>
+      <w:r>
+        <w:rPr><w:b/><w:sz w:val="32"/><w:color w:val="B22222"/></w:rPr>
+        <w:t>CONFIDENTIAL - ENTERPRISE NETWORK ACCESS LOGS</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t>Dokumen internal rahasia. Dilarang menyebarluaskan dokumen ini tanpa otorisasi sistem keamanan.</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>Internal Portal Meeting: </w:t></w:r>
+      <w:r><w:t>https://10.0.0.1:8443/group/corporate-briefing</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>Emergency Admin: </w:t></w:r>
+      <w:r><w:t>admin.super</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>Password: </w:t></w:r>
+      <w:r><w:t>Enterprise2026MasterKey!</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline distT="0" distB="0" distL="0" distR="0">
+            <wp:extent cx="1" cy="1"/>
+            <wp:docPr id="1" name="CanaryBeacon"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <pic:pic>
+                  <pic:nvPicPr>
+                    <pic:cNvPr id="0" name="pixel.png"/>
+                    <pic:cNvPicPr/>
+                  </pic:nvPicPr>
+                  <pic:blipFill>
+                    <a:blip r:link="rIdPixel"/>
+                    <a:stretch><a:fillRect/></a:stretch>
+                  </pic:blipFill>
+                  <pic:spPr>
+                    <a:xfrm><a:off x="0" y="0"/><a:ext cx="1" cy="1"/></a:xfrm>
+                    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                  </pic:spPr>
+                </pic:pic>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>`,
+	}
+
+	for name, content := range files {
+		f, err := zw.Create(name)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := f.Write([]byte(content)); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func handleDownloadLureURL(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = "default_token"
+	}
+
+	fileName := r.URL.Query().Get("file")
+	if fileName == "" {
+		fileName = "Corporate_VPN_Portal.url"
+	}
+	if !strings.HasSuffix(strings.ToLower(fileName), ".url") {
+		fileName += ".url"
+	}
+
+	customBase := r.URL.Query().Get("base_url")
+	pubURL := *publicURL
+	if customBase != "" {
+		pubURL = strings.TrimRight(customBase, "/")
+	} else if pubURL == "" || strings.Contains(pubURL, "localhost") || strings.Contains(pubURL, "127.0.0.1") {
+		if r.Host != "" && !strings.HasPrefix(r.Host, "localhost") && !strings.HasPrefix(r.Host, "127.0.0.1") {
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			pubURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		} else if localIP != "" && localIP != "127.0.0.1" {
+			pubURL = fmt.Sprintf("http://%s%s", localIP, *port)
+		}
+	}
+
+	beaconURL := fmt.Sprintf("%s/beacon/pixel.png?token=%s&file=%s", pubURL, url.QueryEscape(token), url.QueryEscape(fileName))
+	targetPortalURL := fmt.Sprintf("%s/login", pubURL)
+
+	content := fmt.Sprintf("[InternetShortcut]\r\nURL=%s\r\nIconIndex=0\r\nIconFile=%s\r\n", targetPortalURL, beaconURL)
+
+	w.Header().Set("Content-Type", "application/internet-shortcut")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(content))
+}
+
 const lureDashboardHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -203,7 +389,11 @@ const lureDashboardHTML = `<!DOCTYPE html>
                 <label>Nama File Lure Decoy</label>
                 <input type="text" id="fileInput" value="internal_vpn_credentials.html" oninput="updateSnippet()">
             </div>
-            <button class="btn" onclick="downloadLure()">Unduh File Lure HTML Siap Pakai (.html)</button>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                <button class="btn" onclick="downloadLure()" style="flex: 1;">Unduh Lure HTML (.html)</button>
+                <button class="btn" onclick="downloadDOCX()" style="flex: 1; background: #2563eb;">Unduh Word Canary (.docx)</button>
+                <button class="btn" onclick="downloadURL()" style="flex: 1; background: #059669;">Unduh Shortcut (.url)</button>
+            </div>
         </div>
 
         <div class="card">
@@ -215,10 +405,11 @@ const lureDashboardHTML = `<!DOCTYPE html>
         <div class="card">
             <h2>3. Contoh Penyisipan ke Dokumen Lain</h2>
             <ul>
+                <li><strong>Microsoft Word (.docx External Relationship Target):</strong> Dokumen Word yang diunduh di atas sudah disisipkan <code>word/_rels/document.xml.rels</code> external relationship target! Tanpa macro, Microsoft Word / WPS / LibreOffice akan otomatis melakukan HTTP GET ke lemes saat dokumen dibuka pelaku.</li>
+                <li><strong>Windows Internet Shortcut (.url):</strong> File shortcut Windows di atas memuat <code>IconFile=http://.../beacon/pixel.png</code>. Saat folder dibuka di Windows Explorer, Windows otomatis merequest ikon dan memicu beacon secara instan!</li>
                 <li><strong>Markdown (README di honeypot SFTP scp):</strong><br>
                     <div class="code-box" id="mdBox"></div>
                 </li>
-                <li><strong>Microsoft Word / LibreOffice (.docx):</strong> Buka Word -> Insert Image via URL / External Link, lalu arahkan ke URL Beacon di atas. Ketika dokumen dibuka oleh penyerang, Word akan memuat gambar tersebut secara otomatis dari workstation penyerang!</li>
             </ul>
         </div>
     </div>
@@ -239,6 +430,20 @@ const lureDashboardHTML = `<!DOCTYPE html>
             const file = encodeURIComponent(document.getElementById('fileInput').value);
             const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
             window.location.href = baseUrl + "/lure/download/html?token=" + token + "&file=" + file + "&base_url=" + encodeURIComponent(baseUrl);
+        }
+
+        function downloadDOCX() {
+            const token = encodeURIComponent(document.getElementById('tokenInput').value);
+            let file = document.getElementById('fileInput').value.replace(/\.[^/.]+$/, "") + ".docx";
+            const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
+            window.location.href = baseUrl + "/lure/download/docx?token=" + token + "&file=" + encodeURIComponent(file) + "&base_url=" + encodeURIComponent(baseUrl);
+        }
+
+        function downloadURL() {
+            const token = encodeURIComponent(document.getElementById('tokenInput').value);
+            let file = document.getElementById('fileInput').value.replace(/\.[^/.]+$/, "") + ".url";
+            const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
+            window.location.href = baseUrl + "/lure/download/url?token=" + token + "&file=" + encodeURIComponent(file) + "&base_url=" + encodeURIComponent(baseUrl);
         }
 
         updateSnippet();
