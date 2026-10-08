@@ -32,7 +32,22 @@ type LemesCTIEvent struct {
 	LureFile       string            `json:"lure_file,omitempty"`
 	Credentials    *DecoyCredentials `json:"credentials,omitempty"`
 	Headers        map[string]string `json:"headers,omitempty"`
+	Telemetry      *ClientTelemetry  `json:"telemetry,omitempty"`
 	Mitre          MitreAttackInfo   `json:"mitre_attack"`
+}
+
+type ClientTelemetry struct {
+	Timezone       string   `json:"timezone,omitempty"`
+	ScreenRes      string   `json:"screen_resolution,omitempty"`
+	ColorDepth     int      `json:"color_depth,omitempty"`
+	CPUCores       int      `json:"cpu_cores,omitempty"`
+	DeviceMemoryGB float64  `json:"device_memory_gb,omitempty"`
+	GPURenderer    string   `json:"gpu_renderer,omitempty"`
+	GPUVendor      string   `json:"gpu_vendor,omitempty"`
+	Languages      []string `json:"languages,omitempty"`
+	Platform       string   `json:"platform,omitempty"`
+	TouchSupport   bool     `json:"touch_support,omitempty"`
+	LocalTime      string   `json:"local_time,omitempty"`
 }
 
 type DecoyCredentials struct {

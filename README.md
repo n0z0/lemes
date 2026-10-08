@@ -101,12 +101,13 @@ lemes -port :8080 -ctilog /var/log/lemes_cti.jsonl -cachedb 127.0.0.1:50051 -pub
 
 | Path | Metode | Keterangan |
 | :--- | :--- | :--- |
-| `/beacon/pixel.png` | GET | Tracking pixel 1x1 transparent PNG (Beacon) |
+| `/beacon/pixel.png` | GET | Tracking pixel 1x1 transparent PNG (Tingkat 1 - Passive Beacon) |
+| `/beacon/telemetry` | POST | Penerima telemetri hardware, timezone & GPU (Tingkat 2 - JS Fingerprinting) |
 | `/b/{token}` | GET | Format ringkas pemanggil beacon token |
 | `/login`, `/portal` | GET / POST | Decoy Corporate Login Portal (menjebak kredensial) |
 | `/api/*` | ANY | Decoy API probes trap |
 | `/lure` | GET | Dashboard generator token & file umpan |
-| `/lure/download/html` | GET | Unduh file HTML lure siap sebar |
+| `/lure/download/html` | GET | Unduh file HTML lure siap sebar (Tingkat 1 + 2) |
 | `/ping` | GET | Health-check endpoint |
 
 ---
@@ -153,6 +154,39 @@ lemes -port :8080 -ctilog /var/log/lemes_cti.jsonl -cachedb 127.0.0.1:50051 -pub
     "tactic": "Credential Access",
     "technique": "Brute Force: Password Guessing / Credential Stuffing",
     "technique_id": "T1110"
+  }
+}
+```
+
+### Event 3: Penyerang Membuka File HTML Lure (Tingkat 2 - Hardware & Timezone Telemetry)
+```json
+{
+  "timestamp": "2026-10-08T10:13:03.7077498Z",
+  "sensor_id": "sensor-srv-01",
+  "event_type": "BEACON_TELEMETRY_FINGERPRINT",
+  "client_ip": "182.253.14.92",
+  "client_port": 55574,
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  "method": "POST",
+  "url_path": "/beacon/telemetry",
+  "token_id": "vpn_leak_01",
+  "lure_file": "internal_vpn_credentials.html",
+  "telemetry": {
+    "timezone": "Asia/Jakarta",
+    "screen_resolution": "1920x1080",
+    "color_depth": 24,
+    "cpu_cores": 8,
+    "device_memory_gb": 16,
+    "gpu_renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11)",
+    "gpu_vendor": "Google Inc. (NVIDIA)",
+    "languages": ["id-ID", "id", "en-US"],
+    "platform": "Win32",
+    "local_time": "Thu Oct 08 2026 10:12:00 GMT+0700"
+  },
+  "mitre_attack": {
+    "tactic": "Discovery",
+    "technique": "System Information Discovery: Hardware & Environment",
+    "technique_id": "T1082"
   }
 }
 ```

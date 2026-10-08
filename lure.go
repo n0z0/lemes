@@ -36,6 +36,7 @@ func handleDownloadLureHTML(w http.ResponseWriter, r *http.Request) {
 	}
 
 	beaconURL := fmt.Sprintf("%s/beacon/pixel.png?token=%s&file=%s", pubURL, url.QueryEscape(token), url.QueryEscape(fileName))
+	telemetryURL := fmt.Sprintf("%s/beacon/telemetry", pubURL)
 
 	content := fmt.Sprintf(`<!DOCTYPE html>
 <html>
@@ -57,10 +58,66 @@ func handleDownloadLureHTML(w http.ResponseWriter, r *http.Request) {
         </table>
         <p style="margin-top: 25px; font-size: 13px; color: #666;">Silakan gunakan sertifikat yang terlampir untuk autentikasi ganda.</p>
     </div>
-    <!-- CTI Honeytoken Beacon (Invisible) -->
+
+    <!-- Tingkat 1: CTI Passive Beacon (Image Pixel) -->
     <img src="%s" width="1" height="1" style="display:none;" alt="" />
+
+    <!-- Tingkat 2: CTI Advanced Telemetry (Hardware, Timezone & Environment Fingerprint) -->
+    <script>
+    (function() {
+        try {
+            var token = %q;
+            var file = %q;
+            var telemetryUrl = %q;
+
+            var gpuVendor = "Unknown";
+            var gpuRenderer = "Unknown";
+            try {
+                var canvas = document.createElement("canvas");
+                var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+                if (gl) {
+                    var debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+                    if (debugInfo) {
+                        gpuVendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) || "Unknown";
+                        gpuRenderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || "Unknown";
+                    }
+                }
+            } catch (e) {}
+
+            var payload = {
+                token_id: token,
+                lure_file: file,
+                timezone: (Intl && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : "Unknown",
+                screen_resolution: (window.screen.width || 0) + "x" + (window.screen.height || 0),
+                color_depth: window.screen.colorDepth || 0,
+                cpu_cores: navigator.hardwareConcurrency || 0,
+                device_memory_gb: navigator.deviceMemory || 0,
+                gpu_renderer: gpuRenderer,
+                gpu_vendor: gpuVendor,
+                languages: navigator.languages ? Array.prototype.slice.call(navigator.languages) : [navigator.language || ""],
+                platform: navigator.platform || (navigator.userAgentData ? navigator.userAgentData.platform : "Unknown"),
+                touch_support: (navigator.maxTouchPoints || 0) > 0,
+                local_time: new Date().toString()
+            };
+
+            var jsonStr = JSON.stringify(payload);
+
+            if (navigator.sendBeacon) {
+                var blob = new Blob([jsonStr], { type: "application/json" });
+                navigator.sendBeacon(telemetryUrl, blob);
+            } else {
+                fetch(telemetryUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: jsonStr,
+                    mode: "cors"
+                }).catch(function() {});
+            }
+        } catch (err) {}
+    })();
+    </script>
 </body>
-</html>`, beaconURL)
+</html>`, beaconURL, token, fileName, telemetryURL)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
@@ -82,6 +139,7 @@ const lureDashboardHTML = `<!DOCTYPE html>
             --text: #f1f5f9;
             --muted: #94a3b8;
             --border: #1e293b;
+            --badge: #0284c7;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
         body { background: var(--bg); color: var(--text); padding: 40px 20px; }
@@ -90,6 +148,7 @@ const lureDashboardHTML = `<!DOCTYPE html>
         p.subtitle { color: var(--muted); margin-bottom: 30px; font-size: 14px; }
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 24px; }
         .card h2 { font-size: 18px; margin-bottom: 12px; }
+        .badge-pill { display: inline-block; background: rgba(6, 182, 212, 0.15); color: var(--accent); border: 1px solid rgba(6, 182, 212, 0.4); padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-bottom: 12px; }
         .field { margin-bottom: 16px; }
         label { display: block; font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
         input { width: 100%; padding: 10px; background: #070a12; border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 14px; }
@@ -99,38 +158,40 @@ const lureDashboardHTML = `<!DOCTYPE html>
         ol, ul { padding-left: 20px; color: var(--muted); font-size: 14px; line-height: 1.6; }
         li { margin-bottom: 8px; }
         code { background: #05080f; padding: 2px 6px; border-radius: 4px; color: #38bdf8; }
+        .tier-box { background: #080f1e; border-left: 3px solid var(--accent); padding: 12px 16px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #cbd5e1; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🍯 Lemes Honeybeacon Generator</h1>
-        <p class="subtitle">Buat Lure File & Honeytoken untuk memancing pelaku dan mengungkap IP / OS Workstation aslinya.</p>
+        <p class="subtitle">Buat Lure File & Honeytoken untuk memancing pelaku dan mengungkap IP, OS, Timezone & Spesifikasi Mesin Workstation aslinya.</p>
 
         <div class="card">
-            <h2>1. Konfigurasi Token</h2>
+            <span class="badge-pill">Tingkat 2 Telemetry Aktif</span>
+            <h2>1. Konfigurasi & Unduh Umpan (Lure File)</h2>
+            <div class="tier-box">
+                File HTML ini memuat <strong>Tingkat 1 (Passive Pixel)</strong> dan <strong>Tingkat 2 (JS Telemetry)</strong>. Saat dibuka di browser pelaku, ia otomatis merekam <strong>Real IP, Timezone, Model GPU, CPU Cores, RAM, dan Resolusi Layar</strong> ke log CTI!
+            </div>
             <div class="field">
                 <label>Token Identifier (Unik per file/target)</label>
                 <input type="text" id="tokenInput" value="sftp_vpn_leak_01" oninput="updateSnippet()">
             </div>
             <div class="field">
                 <label>Nama File Lure Decoy</label>
-                <input type="text" id="fileInput" value="vpn_credentials.html" oninput="updateSnippet()">
+                <input type="text" id="fileInput" value="internal_vpn_credentials.html" oninput="updateSnippet()">
             </div>
             <button class="btn" onclick="downloadLure()">Unduh File Lure HTML Siap Pakai (.html)</button>
         </div>
 
         <div class="card">
-            <h2>2. URL Beacon / Tracking Pixel</h2>
+            <h2>2. URL Beacon / Tracking Pixel (Tingkat 1)</h2>
             <p style="color: var(--muted); font-size: 13px;">Gunakan link ini untuk disisipkan ke dokumen Word, PDF, Web bug, atau Markdown:</p>
             <div class="code-box" id="urlBox"></div>
         </div>
 
         <div class="card">
-            <h2>3. Contoh Penyisipan ke Dokumen</h2>
+            <h2>3. Contoh Penyisipan ke Dokumen Lain</h2>
             <ul>
-                <li><strong>HTML / Web Bug:</strong> Masukkan tag berikut di dokumen HTML atau template:<br>
-                    <div class="code-box" id="htmlBox"></div>
-                </li>
                 <li><strong>Markdown (README di honeypot SFTP scp):</strong><br>
                     <div class="code-box" id="mdBox"></div>
                 </li>
@@ -148,7 +209,6 @@ const lureDashboardHTML = `<!DOCTYPE html>
             const beaconUrl = baseUrl + "/beacon/pixel.png?token=" + token + "&file=" + file;
 
             document.getElementById('urlBox').textContent = beaconUrl;
-            document.getElementById('htmlBox').textContent = '<img src="' + beaconUrl + '" width="1" height="1" style="display:none;" />';
             document.getElementById('mdBox').textContent = '![](' + beaconUrl + ')';
         }
 

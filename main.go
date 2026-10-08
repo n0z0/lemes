@@ -27,6 +27,7 @@ func main() {
 	// Beacon / Tracking Pixel Endpoints
 	http.HandleFunc("/beacon", handleBeacon)
 	http.HandleFunc("/beacon/pixel.png", handleBeacon)
+	http.HandleFunc("/beacon/telemetry", handleTelemetry)
 	http.HandleFunc("/track.png", handleBeacon)
 	http.HandleFunc("/b/", handleBeacon)
 
