@@ -66,6 +66,9 @@ type CTILogger struct {
 	mu          sync.Mutex
 	cacheClient cachepb.CacheClient
 	grpcConn    *grpc.ClientConn
+	eventChan   chan *LemesCTIEvent
+	quit        chan struct{}
+	wg          sync.WaitGroup
 }
 
 var ctiLogger *CTILogger
@@ -80,7 +83,11 @@ func initCTILogger(path string, cacheDBAddr string) (*CTILogger, error) {
 		}
 	}
 
-	logger := &CTILogger{file: f}
+	logger := &CTILogger{
+		file:      f,
+		eventChan: make(chan *LemesCTIEvent, 2048),
+		quit:      make(chan struct{}),
+	}
 
 	if cacheDBAddr != "" {
 		client, conn, err := cdc.Connect(cacheDBAddr)
@@ -93,26 +100,36 @@ func initCTILogger(path string, cacheDBAddr string) (*CTILogger, error) {
 		}
 	}
 
+	// Worker goroutine untuk proses penulisan file dan push ke CacheDB secara non-blocking
+	logger.wg.Add(1)
+	go func() {
+		defer logger.wg.Done()
+		for {
+			select {
+			case event, ok := <-logger.eventChan:
+				if !ok {
+					return
+				}
+				logger.processEvent(event)
+			case <-logger.quit:
+				// Drain event tersisa
+				for {
+					select {
+					case event := <-logger.eventChan:
+						logger.processEvent(event)
+					default:
+						return
+					}
+				}
+			}
+		}
+	}()
+
 	ctiLogger = logger
 	return ctiLogger, nil
 }
 
-func (l *CTILogger) Close() {
-	if l != nil {
-		if l.file != nil {
-			l.file.Close()
-		}
-		if l.grpcConn != nil {
-			l.grpcConn.Close()
-		}
-	}
-}
-
-func (l *CTILogger) LogEvent(event *LemesCTIEvent) {
-	if l == nil {
-		return
-	}
-
+func (l *CTILogger) processEvent(event *LemesCTIEvent) {
 	data, err := json.Marshal(event)
 	if err != nil {
 		log.Printf("[CTI] Gagal serialize JSON event: %v", err)
@@ -136,6 +153,30 @@ func (l *CTILogger) LogEvent(event *LemesCTIEvent) {
 	}
 
 	log.Printf("[CTI ALERT] [%s] %s dari IP %s (UA: %s)", event.EventType, event.Mitre.ID, event.ClientIP, event.UserAgent)
+}
+
+func (l *CTILogger) Close() {
+	if l != nil {
+		close(l.quit)
+		l.wg.Wait()
+		if l.file != nil {
+			l.file.Close()
+		}
+		if l.grpcConn != nil {
+			l.grpcConn.Close()
+		}
+	}
+}
+
+func (l *CTILogger) LogEvent(event *LemesCTIEvent) {
+	if l == nil {
+		return
+	}
+	select {
+	case l.eventChan <- event:
+	default:
+		go l.processEvent(event)
+	}
 }
 
 // extractClientIP mengambil IP asli klien dari header reverse proxy atau RemoteAddr
