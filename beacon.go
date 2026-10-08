@@ -57,7 +57,7 @@ func handleBeacon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ctiLogger != nil {
-		ctiLogger.LogEvent(event)
+		ctiLogger.asyncEnrichAndLog(event)
 	}
 
 	// Kirim balik transparent PNG dan cegah caching browser/proxy
@@ -152,7 +152,7 @@ func handleTelemetry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ctiLogger != nil {
-		ctiLogger.LogEvent(event)
+		ctiLogger.asyncEnrichAndLog(event)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

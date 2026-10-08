@@ -63,7 +63,7 @@ func handleDecoyPortal(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if ctiLogger != nil {
-			ctiLogger.LogEvent(event)
+			ctiLogger.asyncEnrichAndLog(event)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -101,7 +101,7 @@ func handleDecoyAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ctiLogger != nil {
-		ctiLogger.LogEvent(event)
+		ctiLogger.asyncEnrichAndLog(event)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

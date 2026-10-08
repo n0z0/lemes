@@ -104,6 +104,9 @@ func main() {
 	if *cacheDB != "" {
 		log.Printf("⚡ cacheDB     : %s", *cacheDB)
 	}
+	if *webhookURL != "" {
+		log.Printf("📢 SOC Webhook : %s (%s)", *webhookURL, *webhookType)
+	}
 	if *tunnelFlag {
 		log.Printf("🌐 HTTPS Tunnel: %s (Cloudflare)", *publicURL)
 	}
