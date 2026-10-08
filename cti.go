@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -257,24 +258,33 @@ func (l *CTILogger) asyncEnrichAndLog(event *LemesCTIEvent) {
 				}
 			}
 
-			// 2. Korelasi De-Anonymization: Cek apakah token ini terikat ke IP scanner lain
+			// 2. Korelasi De-Anonymization: Cek apakah token atau nama file ini terikat ke IP scanner/downloader lain
+			var scannerIP string
 			if evt.TokenID != "" {
-				scannerIP, err := cdc.Get("token:owner:"+evt.TokenID, l.cacheClient)
-				if err == nil && scannerIP != "" && scannerIP != evt.ClientIP {
-					// Attacker membuka file di IP berbeda (De-anonymization Goldmine!)
-					evt.Deanonymized = true
-					evt.ScannerIP = scannerIP
-					evt.EventType = "BEACON_DEANONYMIZED"
-					log.Printf("[SOC ATTRIBUTION] 🎯 ATTACKER UNMASKED! Dokumen curian oleh scanner %s dibuka dari Workstation Asli IP: %s (UA: %s)",
-						scannerIP, evt.ClientIP, evt.UserAgent)
-
-					// Update temuan de-anonymization ke cacheDB
-					_ = cdc.Set("actor:real_ip:"+scannerIP, evt.ClientIP, l.cacheClient)
-					_ = cdc.Set("actor:deanonymized:"+evt.ClientIP, scannerIP, l.cacheClient)
-					_ = cdc.Set("actor:risk:"+evt.ClientIP, "100", l.cacheClient)
-					_ = cdc.Set("actor:severity:"+evt.ClientIP, "CRITICAL", l.cacheClient)
-					_ = cdc.Set("actor:intent:"+evt.ClientIP, "DATA_EXFILTRATION_OPENED", l.cacheClient)
+				scannerIP, _ = cdc.Get("token:owner:"+evt.TokenID, l.cacheClient)
+			}
+			if scannerIP == "" && evt.LureFile != "" {
+				baseName := filepath.Base(evt.LureFile)
+				scannerIP, _ = cdc.Get("token:download:"+baseName, l.cacheClient)
+				if scannerIP == "" {
+					scannerIP, _ = cdc.Get("token:owner:"+baseName, l.cacheClient)
 				}
+			}
+
+			if scannerIP != "" && scannerIP != evt.ClientIP {
+				// Attacker membuka file di IP berbeda (De-anonymization Goldmine!)
+				evt.Deanonymized = true
+				evt.ScannerIP = scannerIP
+				evt.EventType = "BEACON_DEANONYMIZED"
+				log.Printf("[SOC ATTRIBUTION] 🎯 ATTACKER UNMASKED! Dokumen curian oleh scanner %s dibuka dari Workstation Asli IP: %s (UA: %s)",
+					scannerIP, evt.ClientIP, evt.UserAgent)
+
+				// Update temuan de-anonymization ke cacheDB
+				_ = cdc.Set("actor:real_ip:"+scannerIP, evt.ClientIP, l.cacheClient)
+				_ = cdc.Set("actor:deanonymized:"+evt.ClientIP, scannerIP, l.cacheClient)
+				_ = cdc.Set("actor:risk:"+evt.ClientIP, "100", l.cacheClient)
+				_ = cdc.Set("actor:severity:"+evt.ClientIP, "CRITICAL", l.cacheClient)
+				_ = cdc.Set("actor:intent:"+evt.ClientIP, "DATA_EXFILTRATION_OPENED", l.cacheClient)
 			}
 		}
 
