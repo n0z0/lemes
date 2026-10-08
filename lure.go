@@ -289,6 +289,224 @@ func generateCanaryDOCX(beaconURL string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func handleDownloadLureXLSX(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = "default_token"
+	}
+
+	fileName := r.URL.Query().Get("file")
+	if fileName == "" {
+		fileName = "Executive_Payroll_2026.xlsx"
+	}
+	if !strings.HasSuffix(strings.ToLower(fileName), ".xlsx") {
+		fileName += ".xlsx"
+	}
+
+	customBase := r.URL.Query().Get("base_url")
+	pubURL := *publicURL
+	if customBase != "" {
+		pubURL = strings.TrimRight(customBase, "/")
+	} else if pubURL == "" || strings.Contains(pubURL, "localhost") || strings.Contains(pubURL, "127.0.0.1") {
+		if r.Host != "" && !strings.HasPrefix(r.Host, "localhost") && !strings.HasPrefix(r.Host, "127.0.0.1") {
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			pubURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		} else if localIP != "" && localIP != "127.0.0.1" {
+			pubURL = fmt.Sprintf("http://%s%s", localIP, *port)
+		}
+	}
+
+	beaconURL := fmt.Sprintf("%s/beacon/pixel.png?token=%s&file=%s", pubURL, url.QueryEscape(token), url.QueryEscape(fileName))
+
+	xlsxBytes, err := generateCanaryXLSX(beaconURL)
+	if err != nil {
+		http.Error(w, "Gagal membuat dokumen XLSX", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	w.WriteHeader(http.StatusOK)
+	w.Write(xlsxBytes)
+}
+
+func generateCanaryXLSX(beaconURL string) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	files := map[string]string{
+		"[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+</Types>`,
+		"_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+		"xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`,
+		"xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Executive_Payroll_2026" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`,
+		"xl/worksheets/_rels/sheet1.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDraw" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
+</Relationships>`,
+		"xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>CONFIDENTIAL - EXECUTIVE PAYROLL &amp; RETENTION BONUSES 2026</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>Department: Enterprise Technology &amp; Security Division</t></is></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="inlineStr"><is><t>Portal Briefing: https://10.0.0.1:8443/group/it-briefing</t></is></c>
+    </row>
+    <row r="4">
+      <c r="A4" t="inlineStr"><is><t>Credentials: admin / admin123</t></is></c>
+    </row>
+  </sheetData>
+  <drawing r:id="rIdDraw"/>
+</worksheet>`,
+		"xl/drawings/_rels/drawing1.xml.rels": fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPixel" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="%s" TargetMode="External"/>
+</Relationships>`, beaconURL),
+		"xl/drawings/drawing1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+          xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:oneCellAnchor>
+    <xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>10</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>
+    <xdr:ext cx="1" cy="1"/>
+    <xdr:pic>
+      <xdr:nvPicPr>
+        <xdr:cNvPr id="1" name="pixel.png"/>
+        <xdr:cNvPicPr/>
+      </xdr:nvPicPr>
+      <xdr:blipFill>
+        <a:blip r:link="rIdPixel"/>
+        <a:stretch><a:fillRect/></a:stretch>
+      </xdr:blipFill>
+      <xdr:spPr>
+        <a:xfrm><a:off x="0" y="0"/><a:ext cx="1" cy="1"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+      </xdr:spPr>
+    </xdr:pic>
+    <xdr:clientData/>
+  </xdr:oneCellAnchor>
+</xdr:wsDr>`,
+	}
+
+	for name, content := range files {
+		f, err := zw.Create(name)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := f.Write([]byte(content)); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func handleDownloadLurePDF(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = "default_token"
+	}
+
+	fileName := r.URL.Query().Get("file")
+	if fileName == "" {
+		fileName = "Confidential_Security_Report.pdf"
+	}
+	if !strings.HasSuffix(strings.ToLower(fileName), ".pdf") {
+		fileName += ".pdf"
+	}
+
+	customBase := r.URL.Query().Get("base_url")
+	pubURL := *publicURL
+	if customBase != "" {
+		pubURL = strings.TrimRight(customBase, "/")
+	} else if pubURL == "" || strings.Contains(pubURL, "localhost") || strings.Contains(pubURL, "127.0.0.1") {
+		if r.Host != "" && !strings.HasPrefix(r.Host, "localhost") && !strings.HasPrefix(r.Host, "127.0.0.1") {
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			pubURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		} else if localIP != "" && localIP != "127.0.0.1" {
+			pubURL = fmt.Sprintf("http://%s%s", localIP, *port)
+		}
+	}
+
+	beaconURL := fmt.Sprintf("%s/beacon/pixel.png?token=%s&file=%s", pubURL, url.QueryEscape(token), url.QueryEscape(fileName))
+	pdfBytes := generateCanaryPDF(beaconURL)
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	w.WriteHeader(http.StatusOK)
+	w.Write(pdfBytes)
+}
+
+func generateCanaryPDF(beaconURL string) []byte {
+	var buf bytes.Buffer
+	var offsets []int
+
+	writeObj := func(content string) {
+		offsets = append(offsets, buf.Len())
+		buf.WriteString(content)
+	}
+
+	buf.WriteString("%PDF-1.4\n")
+
+	// Obj 1: Catalog with OpenAction
+	writeObj("1 0 obj\n<<\n  /Type /Catalog\n  /Pages 2 0 R\n  /OpenAction 4 0 R\n>>\nendobj\n")
+
+	// Obj 2: Pages
+	writeObj("2 0 obj\n<<\n  /Type /Pages\n  /Kids [3 0 R]\n  /Count 1\n>>\nendobj\n")
+
+	// Obj 3: Page
+	writeObj("3 0 obj\n<<\n  /Type /Page\n  /Parent 2 0 R\n  /MediaBox [0 0 612 792]\n  /Contents 5 0 R\n  /Resources <<\n    /Font <<\n      /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\n      /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\n    >>\n  >>\n>>\nendobj\n")
+
+	// Obj 4: Action (URI)
+	escapedURL := strings.ReplaceAll(beaconURL, "\\", "\\\\")
+	escapedURL = strings.ReplaceAll(escapedURL, "(", "\\(")
+	escapedURL = strings.ReplaceAll(escapedURL, ")", "\\)")
+	writeObj(fmt.Sprintf("4 0 obj\n<<\n  /Type /Action\n  /S /URI\n  /URI (%s)\n>>\nendobj\n", escapedURL))
+
+	// Obj 5: Stream Content
+	streamText := "BT\n/F1 18 Tf\n50 720 Td\n(CONFIDENTIAL - ENTERPRISE SECURITY AUDIT) Tj\n/F2 11 Tf\n0 -35 Td\n(This document contains confidential intelligence for authorized staff only.) Tj\n0 -25 Td\n(Internal Meeting Portal: https://10.0.0.1:8443/group/it-briefing) Tj\n0 -20 Td\n(Authorized Admin Account: admin / admin123) Tj\n0 -30 Td\n(Notice: Document verification in progress...) Tj\nET\n"
+	writeObj(fmt.Sprintf("5 0 obj\n<< /Length %d >>\nstream\n%sendstream\nendobj\n", len(streamText), streamText))
+
+	startxref := buf.Len()
+	buf.WriteString(fmt.Sprintf("xref\n0 %d\n0000000000 65535 f \n", len(offsets)+1))
+	for _, off := range offsets {
+		buf.WriteString(fmt.Sprintf("%010d 00000 n \n", off))
+	}
+	buf.WriteString(fmt.Sprintf("trailer\n<<\n  /Size %d\n  /Root 1 0 R\n>>\nstartxref\n%d\n%%%%EOF\n", len(offsets)+1, startxref))
+
+	return buf.Bytes()
+}
+
 func handleDownloadLureURL(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
@@ -348,7 +566,7 @@ const lureDashboardHTML = `<!DOCTYPE html>
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
         body { background: var(--bg); color: var(--text); padding: 40px 20px; }
-        .container { max-width: 850px; margin: auto; }
+        .container { max-width: 900px; margin: auto; }
         h1 { font-size: 26px; color: var(--accent); margin-bottom: 8px; font-weight: 700; }
         p.subtitle { color: var(--muted); margin-bottom: 30px; font-size: 14px; }
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 24px; }
@@ -358,7 +576,7 @@ const lureDashboardHTML = `<!DOCTYPE html>
         label { display: block; font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
         input { width: 100%; padding: 10px; background: #070a12; border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 14px; }
         .code-box { background: #05080f; border: 1px solid #1e293b; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; color: #38bdf8; word-break: break-all; margin: 12px 0; }
-        .btn { display: inline-block; padding: 10px 18px; background: var(--accent); color: #000; font-weight: 600; text-decoration: none; border-radius: 6px; font-size: 14px; cursor: pointer; border: none; }
+        .btn { display: inline-block; padding: 10px 14px; background: var(--accent); color: #000; font-weight: 600; text-decoration: none; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; text-align: center; }
         .btn:hover { opacity: 0.9; }
         ol, ul { padding-left: 20px; color: var(--muted); font-size: 14px; line-height: 1.6; }
         li { margin-bottom: 8px; }
@@ -372,10 +590,10 @@ const lureDashboardHTML = `<!DOCTYPE html>
         <p class="subtitle">Buat Lure File & Honeytoken untuk memancing pelaku dan mengungkap IP, OS, Timezone & Spesifikasi Mesin Workstation aslinya.</p>
 
         <div class="card">
-            <span class="badge-pill">Tingkat 2 Telemetry Aktif</span>
+            <span class="badge-pill">Multi-Format Deception Suite</span>
             <h2>1. Konfigurasi & Unduh Umpan (Lure File)</h2>
             <div class="tier-box">
-                File HTML ini memuat <strong>Tingkat 1 (Passive Pixel)</strong> dan <strong>Tingkat 2 (JS Telemetry)</strong>. Saat dibuka di browser pelaku, ia otomatis merekam <strong>Real IP, Timezone, Model GPU, CPU Cores, RAM, dan Resolusi Layar</strong> ke log CTI!
+                Pilih format bait yang sesuai skenario honeypot. Dokumen Word (.docx), Excel (.xlsx), PDF (.pdf), dan Shortcut (.url) akan otomatis menghubungi server saat dibuka di komputer pelaku <strong>tanpa memerlukan macro berbahaya</strong>!
             </div>
             <div class="field">
                 <label>Alamat Listener / Base URL (IP LAN Komputer / Domain Publik Tunnel)</label>
@@ -383,30 +601,34 @@ const lureDashboardHTML = `<!DOCTYPE html>
             </div>
             <div class="field">
                 <label>Token Identifier (Unik per file/target)</label>
-                <input type="text" id="tokenInput" value="sftp_vpn_leak_01" oninput="updateSnippet()">
+                <input type="text" id="tokenInput" value="sftp_leak_01" oninput="updateSnippet()">
             </div>
             <div class="field">
-                <label>Nama File Lure Decoy</label>
-                <input type="text" id="fileInput" value="internal_vpn_credentials.html" oninput="updateSnippet()">
+                <label>Nama File Lure Decoy (Basis Nama)</label>
+                <input type="text" id="fileInput" value="Confidential_Enterprise_Data" oninput="updateSnippet()">
             </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
-                <button class="btn" onclick="downloadLure()" style="flex: 1;">Unduh Lure HTML (.html)</button>
-                <button class="btn" onclick="downloadDOCX()" style="flex: 1; background: #2563eb;">Unduh Word Canary (.docx)</button>
-                <button class="btn" onclick="downloadURL()" style="flex: 1; background: #059669;">Unduh Shortcut (.url)</button>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 15px;">
+                <button class="btn" onclick="downloadLure()">HTML (.html)</button>
+                <button class="btn" onclick="downloadDOCX()" style="background: #2563eb; color: #fff;">Word (.docx)</button>
+                <button class="btn" onclick="downloadXLSX()" style="background: #16a34a; color: #fff;">Excel (.xlsx)</button>
+                <button class="btn" onclick="downloadPDF()" style="background: #dc2626; color: #fff;">PDF (.pdf)</button>
+                <button class="btn" onclick="downloadURL()" style="background: #d97706; color: #fff;">Shortcut (.url)</button>
             </div>
         </div>
 
         <div class="card">
             <h2>2. URL Beacon / Tracking Pixel (Tingkat 1)</h2>
-            <p style="color: var(--muted); font-size: 13px;">Gunakan link ini untuk disisipkan ke dokumen Word, PDF, Web bug, atau Markdown:</p>
+            <p style="color: var(--muted); font-size: 13px;">Gunakan link ini untuk disisipkan ke dokumen Word, Excel, PDF, Web bug, atau Markdown:</p>
             <div class="code-box" id="urlBox"></div>
         </div>
 
         <div class="card">
-            <h2>3. Contoh Penyisipan ke Dokumen Lain</h2>
+            <h2>3. Mekanisme Zero-Macro Canary File</h2>
             <ul>
-                <li><strong>Microsoft Word (.docx External Relationship Target):</strong> Dokumen Word yang diunduh di atas sudah disisipkan <code>word/_rels/document.xml.rels</code> external relationship target! Tanpa macro, Microsoft Word / WPS / LibreOffice akan otomatis melakukan HTTP GET ke lemes saat dokumen dibuka pelaku.</li>
-                <li><strong>Windows Internet Shortcut (.url):</strong> File shortcut Windows di atas memuat <code>IconFile=http://.../beacon/pixel.png</code>. Saat folder dibuka di Windows Explorer, Windows otomatis merequest ikon dan memicu beacon secara instan!</li>
+                <li><strong>Microsoft Word (.docx):</strong> Menyisipkan <code>word/_rels/document.xml.rels</code> target eksternal. Begitu dibuka di MS Word, WPS, atau LibreOffice, software otomatis melakukan HTTP GET ke lemes.</li>
+                <li><strong>Microsoft Excel (.xlsx):</strong> Menyisipkan <code>xl/drawings/_rels/drawing1.xml.rels</code> target eksternal. Excel otomatis memuat pixel saat worksheet dibuka.</li>
+                <li><strong>Adobe PDF (.pdf):</strong> Menyisipkan <code>/OpenAction</code> dengan <code>/Type /Action /S /URI</code>. Begitu PDF dibuka di Adobe Reader atau browser, tautan beacon otomatis diverifikasi.</li>
+                <li><strong>Windows Internet Shortcut (.url):</strong> Menggunakan <code>IconFile=http://.../beacon/pixel.png</code>. Windows Explorer otomatis menembakkan beacon saat file/folder dilihat.</li>
                 <li><strong>Markdown (README di honeypot SFTP scp):</strong><br>
                     <div class="code-box" id="mdBox"></div>
                 </li>
@@ -427,9 +649,9 @@ const lureDashboardHTML = `<!DOCTYPE html>
 
         function downloadLure() {
             const token = encodeURIComponent(document.getElementById('tokenInput').value);
-            const file = encodeURIComponent(document.getElementById('fileInput').value);
+            let file = document.getElementById('fileInput').value.replace(/\.[^/.]+$/, "") + ".html";
             const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
-            window.location.href = baseUrl + "/lure/download/html?token=" + token + "&file=" + file + "&base_url=" + encodeURIComponent(baseUrl);
+            window.location.href = baseUrl + "/lure/download/html?token=" + token + "&file=" + encodeURIComponent(file) + "&base_url=" + encodeURIComponent(baseUrl);
         }
 
         function downloadDOCX() {
@@ -437,6 +659,20 @@ const lureDashboardHTML = `<!DOCTYPE html>
             let file = document.getElementById('fileInput').value.replace(/\.[^/.]+$/, "") + ".docx";
             const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
             window.location.href = baseUrl + "/lure/download/docx?token=" + token + "&file=" + encodeURIComponent(file) + "&base_url=" + encodeURIComponent(baseUrl);
+        }
+
+        function downloadXLSX() {
+            const token = encodeURIComponent(document.getElementById('tokenInput').value);
+            let file = document.getElementById('fileInput').value.replace(/\.[^/.]+$/, "") + ".xlsx";
+            const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
+            window.location.href = baseUrl + "/lure/download/xlsx?token=" + token + "&file=" + encodeURIComponent(file) + "&base_url=" + encodeURIComponent(baseUrl);
+        }
+
+        function downloadPDF() {
+            const token = encodeURIComponent(document.getElementById('tokenInput').value);
+            let file = document.getElementById('fileInput').value.replace(/\.[^/.]+$/, "") + ".pdf";
+            const baseUrl = document.getElementById('baseUrlInput').value.replace(/\/+$/, '');
+            window.location.href = baseUrl + "/lure/download/pdf?token=" + token + "&file=" + encodeURIComponent(file) + "&base_url=" + encodeURIComponent(baseUrl);
         }
 
         function downloadURL() {

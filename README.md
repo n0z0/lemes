@@ -52,6 +52,8 @@
 4. **Multi-Format Lure & Canary Token Generator Bawaan**:
    - Akses `/lure` di browser untuk membuat token dan mengunduh:
      - **Word Canary Document (`.docx`):** Menggunakan OpenXML *External Relationship Target* (`word/_rels/document.xml.rels`). Begitu dokumen dibuka di Microsoft Word, LibreOffice, atau WPS oleh penyerang, software Word otomatis melakukan HTTP GET ke beacon tanpa membutuhkan macro!
+     - **Excel Canary Spreadsheet (`.xlsx`):** Menggunakan OpenXML Drawing *External Relationship Target* (`xl/drawings/_rels/drawing1.xml.rels`). Begitu spreadsheet dibuka di MS Excel, Excel otomatis memuat image target dari lemes secara transparan tanpa macro!
+     - **Adobe PDF Canary (`.pdf`):** Menggunakan `/OpenAction` URI dictionary. Ketika file dibuka di Adobe Reader atau browser, dokumen otomatis memicu koneksi verifikasi jaringan ke lemes.
      - **Windows Internet Shortcut (`.url`):** Menanamkan `IconFile=http://.../beacon/pixel.png`. Saat folder atau file dilihat di Windows Explorer, ikon otomatis di-request dan memicu alert instan!
      - **HTML Lure (`.html`):** Memuat kredensial decoy serta skrip telemetri GPU/hardware.
 5. **Integrasi cacheDB (Opsional)**:
@@ -116,6 +118,8 @@ lemes -port :50505 -tunnel -ctilog /var/log/lemes_cti.jsonl -cachedb 127.0.0.1:5
 | `/lure` | GET | Dashboard generator token & file umpan |
 | `/lure/download/html` | GET | Unduh file HTML lure siap sebar (Tingkat 1 + 2) |
 | `/lure/download/docx` | GET | Unduh file Word Canary (.docx) dengan External Relationship Target zero-macro |
+| `/lure/download/xlsx` | GET | Unduh file Excel Canary (.xlsx) dengan OpenXML Drawing External Relationship Target |
+| `/lure/download/pdf` | GET | Unduh file Adobe PDF Canary (.pdf) dengan /OpenAction URI network trigger |
 | `/lure/download/url` | GET | Unduh file Windows Internet Shortcut (.url) dengan IconFile beacon tracker |
 | `/ping` | GET | Health-check endpoint |
 

@@ -58,6 +58,8 @@ func main() {
 	http.HandleFunc("/lure", handleLureDashboard)
 	http.HandleFunc("/lure/download/html", handleDownloadLureHTML)
 	http.HandleFunc("/lure/download/docx", handleDownloadLureDOCX)
+	http.HandleFunc("/lure/download/xlsx", handleDownloadLureXLSX)
+	http.HandleFunc("/lure/download/pdf", handleDownloadLurePDF)
 	http.HandleFunc("/lure/download/url", handleDownloadLureURL)
 
 	// Root Handler
