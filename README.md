@@ -115,6 +115,8 @@ lemes -port :50505 -tunnel -ctilog /var/log/lemes_cti.jsonl -cachedb 127.0.0.1:5
 | `/api/*` | ANY | Decoy API probes trap |
 | `/lure` | GET | Dashboard generator token & file umpan |
 | `/lure/download/html` | GET | Unduh file HTML lure siap sebar (Tingkat 1 + 2) |
+| `/lure/download/docx` | GET | Unduh file Word Canary (.docx) dengan External Relationship Target zero-macro |
+| `/lure/download/url` | GET | Unduh file Windows Internet Shortcut (.url) dengan IconFile beacon tracker |
 | `/ping` | GET | Health-check endpoint |
 
 ---
