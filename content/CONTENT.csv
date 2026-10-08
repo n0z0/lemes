@@ -1,0 +1,6 @@
+No,Environment,Server_Hostname,IP_Address,Service_Port,Username,Decoy_Password,Status,Notes
+1,Production,core-gateway-01,10.0.0.1,8443 (WebRTC/HTTPS),admin,admin123,ACTIVE,Main Meeting & Communications Room (ClassRoot)
+2,Production,sftp-backup-storage,10.0.0.1,60606 (SFTP),root,KnockPortAuth,ACTIVE,Port knocking auth via synwatcher
+3,Internal-VPN,vpn-gw.corp.internal,10.0.0.15,51820 (WireGuard),secops,VpnAdmin#2026,STANDBY,Split-tunnel gateway for remote admin
+4,Database,db-prod-cluster,10.0.0.22,5432 (PostgreSQL),postgres,P@ssw0rdPostgres!,RESTRICTED,Enterprise asset registry database
+5,Identity-SSO,corp-idp-auth,10.0.0.5,50505 (Auth/Portal),superadmin,AdminMasterKey99,MONITORED,Central Active Directory Single Sign-On

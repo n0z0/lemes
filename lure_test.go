@@ -62,9 +62,12 @@ func TestGenerateCanaryDOCX_DualBeacon(t *testing.T) {
 func TestGenerateCanaryXLSX_DualBeacon(t *testing.T) {
 	primary := "https://tunnel.example.com/beacon/pixel.png?token=test_xlsx"
 	lan := "http://192.168.1.100:50505/beacon/pixel.png?token=test_xlsx"
-	content := []string{"Executive Salary Report", "Row 2 data"}
+	records := [][]string{
+		{"No", "Server", "IP_Address", "Password"},
+		{"1", "core-gateway", "10.0.0.1", "admin123"},
+	}
 
-	data, err := generateCanaryXLSX(primary, lan, content)
+	data, err := generateCanaryXLSX(primary, lan, records)
 	if err != nil {
 		t.Fatalf("generateCanaryXLSX failed: %v", err)
 	}
@@ -95,8 +98,8 @@ func TestGenerateCanaryXLSX_DualBeacon(t *testing.T) {
 			buf.ReadFrom(rc)
 			rc.Close()
 			s := buf.String()
-			if !strings.Contains(s, "Executive Salary Report") {
-				t.Errorf("expected content in sheet1.xml")
+			if !strings.Contains(s, "core-gateway") || !strings.Contains(s, "admin123") {
+				t.Errorf("expected tabular content in sheet1.xml")
 			}
 		}
 	}

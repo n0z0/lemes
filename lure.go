@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -25,6 +26,18 @@ func pdfEscape(s string) string {
 	s = strings.ReplaceAll(s, "(", "\\(")
 	s = strings.ReplaceAll(s, ")", "\\)")
 	return s
+}
+
+// colName mengonversi indeks kolom 0-based ke huruf kolom Excel (0->A, 1->B, 25->Z, 26->AA)
+func colName(colIdx int) string {
+	name := ""
+	colIdx++
+	for colIdx > 0 {
+		colIdx--
+		name = string(rune('A'+(colIdx%26))) + name
+		colIdx /= 26
+	}
+	return name
 }
 
 // loadContentLines membaca berkas content/CONTENT.md atau ./CONTENT.md
@@ -58,6 +71,36 @@ func loadContentLines() []string {
 		"## 2. Catatan Integritas",
 		"Dokumen ini diproteksi oleh sistem verifikasi keamanan jaringan.",
 	}
+}
+
+// loadCSVRecords membaca berkas tabular content/CONTENT.csv khusus untuk spreadsheet Excel (.xlsx)
+func loadCSVRecords() [][]string {
+	candidates := []string{
+		filepath.Join("content", "CONTENT.csv"),
+		filepath.Join("..", "content", "CONTENT.csv"),
+		"CONTENT.csv",
+	}
+
+	for _, path := range candidates {
+		data, err := os.ReadFile(path)
+		if err == nil && len(data) > 0 {
+			r := csv.NewReader(bytes.NewReader(data))
+			r.FieldsPerRecord = -1
+			r.LazyQuotes = true
+			records, err := r.ReadAll()
+			if err == nil && len(records) > 0 {
+				return records
+			}
+		}
+	}
+
+	// Fallback jika CONTENT.csv tidak ditemukan: buat tabel dari CONTENT.md
+	lines := loadContentLines()
+	var records [][]string
+	for _, l := range lines {
+		records = append(records, []string{l})
+	}
+	return records
 }
 
 // getDualBeaconURLs menghasilkan URL Beacon Utama (Cloudflare / Public) dan URL Beacon LAN (IP Lokal)
@@ -354,7 +397,7 @@ func handleDownloadLureXLSX(w http.ResponseWriter, r *http.Request) {
 
 	fileName := r.URL.Query().Get("file")
 	if fileName == "" {
-		fileName = "Executive_Payroll_2026.xlsx"
+		fileName = "Enterprise_Credential_Inventory.xlsx"
 	}
 	if !strings.HasSuffix(strings.ToLower(fileName), ".xlsx") {
 		fileName += ".xlsx"
@@ -362,9 +405,9 @@ func handleDownloadLureXLSX(w http.ResponseWriter, r *http.Request) {
 
 	pubURL := resolvePublicBaseURL(r, r.URL.Query().Get("base_url"))
 	primaryBeacon, lanBeacon := getDualBeaconURLs(pubURL, token, fileName)
-	contentLines := loadContentLines()
+	csvRecords := loadCSVRecords()
 
-	xlsxBytes, err := generateCanaryXLSX(primaryBeacon, lanBeacon, contentLines)
+	xlsxBytes, err := generateCanaryXLSX(primaryBeacon, lanBeacon, csvRecords)
 	if err != nil {
 		http.Error(w, "Gagal membuat dokumen XLSX", http.StatusInternalServerError)
 		return
@@ -376,20 +419,20 @@ func handleDownloadLureXLSX(w http.ResponseWriter, r *http.Request) {
 	w.Write(xlsxBytes)
 }
 
-func generateCanaryXLSX(primaryBeacon, lanBeacon string, contentLines []string) ([]byte, error) {
+func generateCanaryXLSX(primaryBeacon, lanBeacon string, records [][]string) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
 
-	// Rows from contentLines
+	// Rows from CSV records (multi-column spreadsheet grid)
 	var rowsXml strings.Builder
-	rowIdx := 1
-	for _, line := range contentLines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
+	for rIdx, row := range records {
+		rowNum := rIdx + 1
+		rowsXml.WriteString(fmt.Sprintf(`<row r="%d">`, rowNum))
+		for cIdx, cell := range row {
+			cellRef := fmt.Sprintf("%s%d", colName(cIdx), rowNum)
+			rowsXml.WriteString(fmt.Sprintf(`<c r="%s" t="inlineStr"><is><t>%s</t></is></c>`, cellRef, xmlEscape(cell)))
 		}
-		rowsXml.WriteString(fmt.Sprintf(`<row r="%d"><c r="A%d" t="inlineStr"><is><t>%s</t></is></c></row>`, rowIdx, rowIdx, xmlEscape(trimmed)))
-		rowIdx++
+		rowsXml.WriteString(`</row>`)
 	}
 
 	// Drawings relationships
