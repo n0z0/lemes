@@ -50,12 +50,16 @@
    - Menyajikan halaman login perusahaan palsu (*Single Sign-On Portal*) pada `/`, `/login`, `/portal`.
    - Menjebak dan merekam percobaan brute force / credential stuffing (MITRE T1110).
 4. **Multi-Format Lure & Canary Token Generator Bawaan**:
+   - **Centralized Decoy Content (`content/CONTENT.md`):** Cukup edit berkas `content/CONTENT.md`, maka seluruh bait yang dihasilkan (Word, Excel, PDF, HTML) akan otomatis memakai teks & kredensial decoy tersebut tanpa perlu compile ulang!
+   - **Dual-Beacon Injection:** Setiap berkas jebakan otomatis disisipi **dua target tracking**:
+     1. **Domain Publik / Cloudflare Tunnel:** Menangkap sinyal jika korban membuka berkas dari jaringan internet luar.
+     2. **IP LAN Lokal (`http://<localIP>:50505`):** Menangkap sinyal jika korban berada dalam jaringan intranet / WiFi kantor atau jika koneksi tunnel mengalami kendala.
    - Akses `/lure` di browser untuk membuat token dan mengunduh:
      - **Word Canary Document (`.docx`):** Menggunakan OpenXML *External Relationship Target* (`word/_rels/document.xml.rels`). Begitu dokumen dibuka di Microsoft Word, LibreOffice, atau WPS oleh penyerang, software Word otomatis melakukan HTTP GET ke beacon tanpa membutuhkan macro!
      - **Excel Canary Spreadsheet (`.xlsx`):** Menggunakan OpenXML Drawing *External Relationship Target* (`xl/drawings/_rels/drawing1.xml.rels`). Begitu spreadsheet dibuka di MS Excel, Excel otomatis memuat image target dari lemes secara transparan tanpa macro!
-     - **Adobe PDF Canary (`.pdf`):** Menggunakan `/OpenAction` URI dictionary. Ketika file dibuka di Adobe Reader atau browser, dokumen otomatis memicu koneksi verifikasi jaringan ke lemes.
+     - **Adobe PDF Canary (`.pdf`):** Menggunakan `/OpenAction` berantai (`/Next`). Ketika file dibuka di Adobe Reader atau browser, dokumen otomatis memicu koneksi verifikasi jaringan ke lemes.
      - **Windows Internet Shortcut (`.url`):** Menanamkan `IconFile=http://.../beacon/pixel.png`. Saat folder atau file dilihat di Windows Explorer, ikon otomatis di-request dan memicu alert instan!
-     - **HTML Lure (`.html`):** Memuat kredensial decoy serta skrip telemetri GPU/hardware.
+     - **HTML Lure (`.html`):** Memuat konten decoy serta skrip telemetri GPU/hardware yang mengirimkan beacon ke kedua channel.
 5. **Integrasi cacheDB (Opsional)**:
    - Otomatis menyimpan entri ancaman ke cache memory via gRPC [cachedb](https://github.com/n0z0/cachedb).
 6. **Structured CTI Log (JSON Lines)**:

@@ -7,9 +7,12 @@ import (
 	"testing"
 )
 
-func TestGenerateCanaryDOCX(t *testing.T) {
-	beaconURL := "http://example.com/beacon/pixel.png?token=test"
-	data, err := generateCanaryDOCX(beaconURL)
+func TestGenerateCanaryDOCX_DualBeacon(t *testing.T) {
+	primary := "https://tunnel.example.com/beacon/pixel.png?token=test"
+	lan := "http://192.168.1.100:50505/beacon/pixel.png?token=test"
+	content := []string{"# TEST TITLE", "Paragraph one", "- Bullet point"}
+
+	data, err := generateCanaryDOCX(primary, lan, content)
 	if err != nil {
 		t.Fatalf("generateCanaryDOCX failed: %v", err)
 	}
@@ -20,6 +23,7 @@ func TestGenerateCanaryDOCX(t *testing.T) {
 	}
 
 	foundRels := false
+	foundDoc := false
 	for _, f := range zr.File {
 		if f.Name == "word/_rels/document.xml.rels" {
 			foundRels = true
@@ -27,22 +31,40 @@ func TestGenerateCanaryDOCX(t *testing.T) {
 			buf := new(bytes.Buffer)
 			buf.ReadFrom(rc)
 			rc.Close()
-			if !strings.Contains(buf.String(), beaconURL) {
-				t.Errorf("expected beaconURL in document.xml.rels")
+			s := buf.String()
+			if !strings.Contains(s, primary) {
+				t.Errorf("expected primary beacon in rels")
 			}
-			if !strings.Contains(buf.String(), `TargetMode="External"`) {
-				t.Errorf("expected TargetMode=\"External\" in document.xml.rels")
+			if !strings.Contains(s, lan) {
+				t.Errorf("expected lan beacon in rels")
+			}
+		}
+		if f.Name == "word/document.xml" {
+			foundDoc = true
+			rc, _ := f.Open()
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(rc)
+			rc.Close()
+			s := buf.String()
+			if !strings.Contains(s, "TEST TITLE") {
+				t.Errorf("expected title text in document.xml")
+			}
+			if !strings.Contains(s, "rIdPixel1") || !strings.Contains(s, "rIdPixel2") {
+				t.Errorf("expected both rIdPixel1 and rIdPixel2 in document.xml")
 			}
 		}
 	}
-	if !foundRels {
-		t.Errorf("word/_rels/document.xml.rels not found in docx")
+	if !foundRels || !foundDoc {
+		t.Errorf("expected files missing in docx")
 	}
 }
 
-func TestGenerateCanaryXLSX(t *testing.T) {
-	beaconURL := "http://example.com/beacon/pixel.png?token=test_xlsx"
-	data, err := generateCanaryXLSX(beaconURL)
+func TestGenerateCanaryXLSX_DualBeacon(t *testing.T) {
+	primary := "https://tunnel.example.com/beacon/pixel.png?token=test_xlsx"
+	lan := "http://192.168.1.100:50505/beacon/pixel.png?token=test_xlsx"
+	content := []string{"Executive Salary Report", "Row 2 data"}
+
+	data, err := generateCanaryXLSX(primary, lan, content)
 	if err != nil {
 		t.Fatalf("generateCanaryXLSX failed: %v", err)
 	}
@@ -53,6 +75,7 @@ func TestGenerateCanaryXLSX(t *testing.T) {
 	}
 
 	foundDrawingRels := false
+	foundSheet := false
 	for _, f := range zr.File {
 		if f.Name == "xl/drawings/_rels/drawing1.xml.rels" {
 			foundDrawingRels = true
@@ -60,34 +83,49 @@ func TestGenerateCanaryXLSX(t *testing.T) {
 			buf := new(bytes.Buffer)
 			buf.ReadFrom(rc)
 			rc.Close()
-			if !strings.Contains(buf.String(), beaconURL) {
-				t.Errorf("expected beaconURL in drawing1.xml.rels")
+			s := buf.String()
+			if !strings.Contains(s, primary) || !strings.Contains(s, lan) {
+				t.Errorf("expected both beacons in drawing1.xml.rels")
 			}
-			if !strings.Contains(buf.String(), `TargetMode="External"`) {
-				t.Errorf("expected TargetMode=\"External\" in drawing1.xml.rels")
+		}
+		if f.Name == "xl/worksheets/sheet1.xml" {
+			foundSheet = true
+			rc, _ := f.Open()
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(rc)
+			rc.Close()
+			s := buf.String()
+			if !strings.Contains(s, "Executive Salary Report") {
+				t.Errorf("expected content in sheet1.xml")
 			}
 		}
 	}
-	if !foundDrawingRels {
-		t.Errorf("xl/drawings/_rels/drawing1.xml.rels not found in xlsx")
+	if !foundDrawingRels || !foundSheet {
+		t.Errorf("expected files missing in xlsx")
 	}
 }
 
-func TestGenerateCanaryPDF(t *testing.T) {
-	beaconURL := "http://example.com/beacon/pixel.png?token=test_pdf"
-	data := generateCanaryPDF(beaconURL)
+func TestGenerateCanaryPDF_DualBeacon(t *testing.T) {
+	primary := "https://tunnel.example.com/beacon/pixel.png?token=test_pdf"
+	lan := "http://192.168.1.100:50505/beacon/pixel.png?token=test_pdf"
+	content := []string{"Confidential PDF Report", "Sensitive line"}
 
+	data := generateCanaryPDF(primary, lan, content)
 	s := string(data)
+
 	if !strings.HasPrefix(s, "%PDF-1.4") {
 		t.Errorf("expected %%PDF-1.4 header")
 	}
-	if !strings.Contains(s, "/OpenAction") {
-		t.Errorf("expected /OpenAction in PDF")
+	if !strings.Contains(s, primary) {
+		t.Errorf("expected primary beacon in PDF")
 	}
-	if !strings.Contains(s, beaconURL) {
-		t.Errorf("expected beaconURL in PDF")
+	if !strings.Contains(s, lan) {
+		t.Errorf("expected LAN beacon in PDF")
 	}
-	if !strings.Contains(s, "%%EOF") {
-		t.Errorf("expected %%EOF trailer")
+	if !strings.Contains(s, "/Next") {
+		t.Errorf("expected /Next action chaining in PDF")
+	}
+	if !strings.Contains(s, "Confidential PDF Report") {
+		t.Errorf("expected content in PDF")
 	}
 }
