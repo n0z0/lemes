@@ -2,7 +2,7 @@
 
 > **Lightweight Honeybeacon & Decoy Web Server for Cyber Threat Intelligence (CTI) & Attacker Attribution.**
 
-`lemes` adalah komponen penangkap sinyal (*beacon receiver* & *web decoy*) yang melengkapi ekosistem honeypot ([synwatcher](https://github.com/n0z0/synwatcher), [scp](https://github.com/n0z0/scp), dan [cachedb](https://github.com/n0z0/cachedb)) untuk melakukan **atribusi objek/manusia (human & workstation attribution)** secara akurat.
+`lemes` adalah komponen penangkap sinyal (*beacon receiver* & *web decoy*) yang melengkapi ekosistem honeypot ([synwatcher](https://github.com/n0z0/synwatcher), [scpd](https://github.com/n0z0/scpd), dan [cachedb](https://github.com/n0z0/cachedb)) untuk melakukan **atribusi objek/manusia (human & workstation attribution)** secara akurat.
 
 ---
 
@@ -18,7 +18,7 @@
                                          ▼
 +-----------------------------------------------------------------------------------+
 | 2. INGRESS & EXFILTRATION                                                         |
-|    Penyerang masuk ke honeypot SFTP (scp :60606) & mendownload file umpan/lure:   |
+|    Penyerang masuk ke honeypot SFTP (scpd :60606) & mendownload file umpan/lure:  |
 |    "confidential_vpn_credentials.html"                                            |
 |    -> Log MITRE T1005: Data from Local System (scp_cti.jsonl)                     |
 +-----------------------------------------------------------------------------------+
