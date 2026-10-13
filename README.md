@@ -1,8 +1,8 @@
 # lemes 🍯
 
-> **Lightweight Honeybeacon & Decoy Web Server for Cyber Threat Intelligence (CTI) & Attacker Attribution.**
+> **Active Defense & Canary Token Telemetry Server for Cyber Threat Intelligence (CTI).**
 
-`lemes` adalah komponen penangkap sinyal (*beacon receiver* & *web decoy*) yang melengkapi ekosistem honeypot ([synwatcher](https://github.com/n0z0/synwatcher), [scpd](https://github.com/n0z0/scpd), dan [cachedb](https://github.com/n0z0/cachedb)) untuk melakukan **atribusi objek/manusia (human & workstation attribution)** secara akurat.
+`lemes` adalah komponen penangkap sinyal telemetri keamanan (*telemetry & canary receiver*) yang melengkapi ekosistem pertahanan aktif ([synwatcher](https://github.com/n0z0/synwatcher), [scpd](https://github.com/n0z0/scpd), dan [cachedb](https://github.com/n0z0/cachedb)) untuk melakukan analisis atribusi workstation & indikator ancaman secara akurat.
 
 ---
 
@@ -18,18 +18,17 @@
                                          ▼
 +-----------------------------------------------------------------------------------+
 | 2. INGRESS & EXFILTRATION                                                         |
-|    Penyerang masuk ke honeypot SFTP (scpd :60606) & mendownload file umpan/lure:  |
+|    Percobaan akses pada SFTP (scpd :60606) & pengunduhan dokumen audit canary:    |
 |    "confidential_vpn_credentials.html"                                            |
 |    -> Log MITRE T1005: Data from Local System (scp_cti.jsonl)                     |
 +-----------------------------------------------------------------------------------+
                                          │
                                          ▼
 +-----------------------------------------------------------------------------------+
-| 3. HUMAN ATTRBUTION & EXECUTION (lemes)                                           |
-|    Penyerang membuka file dokumen hasil curian di laptop/workstation aslinya!     |
-|    Dokumen diam-diam memanggil beacon pixel:                                      |
+| 3. WORKSTATION ATTRIBUTION & EXECUTION (lemes)                                    |
+|    Dokumen audit canary diakses pada workstation tujuan:                          |
 |    GET /beacon/pixel.png?token=vpn_leak_01                                        |
-|    -> lemes merekam: Real IP, User-Agent, Accept-Language, OS Platform            |
+|    -> lemes merekam telemetri: Client IP, User-Agent, Accept-Language, OS Platform|
 |    -> Log MITRE T1204.002: User Execution (lemes_cti.jsonl)                       |
 +-----------------------------------------------------------------------------------+
 ```
@@ -46,20 +45,20 @@
    - Ekstraksi `User-Agent` (mengenali software pembuka: MS Word, Excel, Adobe Acrobat, Browser, curl).
    - Ekstraksi `Accept-Language` (menganalisis bahasa sistem/lokal pelaku: `id-ID`, `ru-RU`, `zh-CN`, `en-US`).
    - Ekstraksi Client Hints (`Sec-Ch-Ua`, `Sec-Ch-Ua-Platform`).
-3. **Decoy Login Portal & API Traps**:
-   - Menyajikan halaman login perusahaan palsu (*Single Sign-On Portal*) pada `/`, `/login`, `/portal`.
-   - Menjebak dan merekam percobaan brute force / credential stuffing (MITRE T1110).
-4. **Multi-Format Lure & Canary Token Generator Bawaan**:
-   - **Centralized Decoy Content (`content/CONTENT.md`):** Cukup edit berkas `content/CONTENT.md`, maka seluruh bait yang dihasilkan (Word, Excel, PDF, HTML) akan otomatis memakai teks & kredensial decoy tersebut tanpa perlu compile ulang!
-   - **Dual-Beacon Injection:** Setiap berkas jebakan otomatis disisipi **dua target tracking**:
-     1. **Domain Publik / Cloudflare Tunnel:** Menangkap sinyal jika korban membuka berkas dari jaringan internet luar.
-     2. **IP LAN Lokal (`http://<localIP>:50505`):** Menangkap sinyal jika korban berada dalam jaringan intranet / WiFi kantor atau jika koneksi tunnel mengalami kendala.
+3. **Synthetic Login Verification & Access Telemetry**:
+   - Menyajikan endpoint pengujian autentikasi enterprise pada `/`, `/login`, `/portal`.
+   - Mengidentifikasi dan mencatat percobaan brute force / credential stuffing (MITRE T1110).
+4. **Multi-Format Canary Token & Audit Document Generator**:
+   - **Centralized Canary Content (`content/CONTENT.md`):** Mengelola konfigurasi teks dan kredensial audit secara terpusat tanpa perlu kompilasi ulang.
+   - **Dual-Beacon Telemetry:** Setiap berkas audit dilengkapi **dua jalur verifikasi**:
+     1. **Domain Publik / Cloudflare Tunnel:** Memverifikasi jika berkas dibuka dari jaringan eksternal.
+     2. **IP LAN Lokal (`http://<localIP>:50505`):** Memverifikasi jika berkas dibuka dari jaringan internal intranet/WiFi.
    - Akses `/lure` di browser untuk membuat token dan mengunduh:
-     - **Word Canary Document (`.docx`):** Menggunakan OpenXML *External Relationship Target* (`word/_rels/document.xml.rels`). Begitu dokumen dibuka di Microsoft Word, LibreOffice, atau WPS oleh penyerang, software Word otomatis melakukan HTTP GET ke beacon tanpa membutuhkan macro!
-     - **Excel Canary Spreadsheet (`.xlsx`):** Menggunakan OpenXML Drawing *External Relationship Target* (`xl/drawings/_rels/drawing1.xml.rels`). Begitu spreadsheet dibuka di MS Excel, Excel otomatis memuat image target dari lemes secara transparan tanpa macro!
-     - **Adobe PDF Canary (`.pdf`):** Menggunakan `/OpenAction` berantai (`/Next`). Ketika file dibuka di Adobe Reader atau browser, dokumen otomatis memicu koneksi verifikasi jaringan ke lemes.
-     - **Windows Internet Shortcut (`.url`):** Menanamkan `IconFile=http://.../beacon/pixel.png`. Saat folder atau file dilihat di Windows Explorer, ikon otomatis di-request dan memicu alert instan!
-     - **HTML Lure (`.html`):** Memuat konten decoy serta skrip telemetri GPU/hardware yang mengirimkan beacon ke kedua channel.
+     - **Word Canary Document (`.docx`):** Menggunakan OpenXML *External Relationship Target* (`word/_rels/document.xml.rels`). Begitu dokumen dibuka, software Word otomatis melakukan verifikasi HTTP GET ke endpoint telemetri tanpa memerlukan macro!
+     - **Excel Canary Spreadsheet (`.xlsx`):** Menggunakan OpenXML Drawing *External Relationship Target* (`xl/drawings/_rels/drawing1.xml.rels`). Begitu spreadsheet dibuka, aplikasi otomatis memuat sinyal telemetri secara transparan tanpa macro!
+     - **Adobe PDF Canary (`.pdf`):** Menggunakan `/OpenAction` berantai (`/Next`). Dokumen memicu koneksi verifikasi jaringan ke endpoint telemetri.
+     - **Windows Internet Shortcut (`.url`):** Menggunakan `IconFile=http://.../beacon/pixel.png` untuk mendeteksi penjelajahan direktori.
+     - **HTML Audit Document (`.html`):** Memuat konten audit serta telemetri lingkungan browser ke kedua channel.
 5. **Integrasi cacheDB (Opsional)**:
    - Otomatis menyimpan entri ancaman ke cache memory via gRPC [cachedb](https://github.com/n0z0/cachedb).
 6. **Structured CTI Log (JSON Lines)**:
@@ -117,9 +116,9 @@ lemes -port :50505 -tunnel -ctilog /var/log/lemes_cti.jsonl -cachedb 127.0.0.1:5
 | `/beacon/pixel.png` | GET | Tracking pixel 1x1 transparent PNG (Tingkat 1 - Passive Beacon) |
 | `/beacon/telemetry` | POST | Penerima telemetri hardware, timezone & GPU (Tingkat 2 - JS Fingerprinting) |
 | `/b/{token}` | GET | Format ringkas pemanggil beacon token |
-| `/login`, `/portal` | GET / POST | Decoy Corporate Login Portal (menjebak kredensial) |
-| `/api/*` | ANY | Decoy API probes trap |
-| `/lure` | GET | Dashboard generator token & file umpan |
+| `/login`, `/portal` | GET / POST | Simulated Corporate Login Portal (Audit Percobaan Akses) |
+| `/api/*` | ANY | Synthetic API Endpoints for Probe Detection |
+| `/lure` | GET | Dashboard Generator Canary Token & Dokumen Audit |
 | `/lure/download/html` | GET | Unduh file HTML lure siap sebar (Tingkat 1 + 2) |
 | `/lure/download/docx` | GET | Unduh file Word Canary (.docx) dengan External Relationship Target zero-macro |
 | `/lure/download/xlsx` | GET | Unduh file Excel Canary (.xlsx) dengan OpenXML Drawing External Relationship Target |
